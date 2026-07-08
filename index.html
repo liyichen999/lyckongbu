@@ -2,19 +2,32 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>圣玛丽医院 · 3D恐怖</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- 移动端虚拟摇杆容器 -->
+  <div id="mobileControls" style="display:none">
+    <div id="joystickMove">
+      <div id="joystickMoveThumb"></div>
+    </div>
+    <div id="joystickLook">
+      <div id="joystickLookThumb"></div>
+    </div>
+    <button id="btnFlashlight" class="mobile-btn">🔦</button>
+    <button id="btnInteract" class="mobile-btn">✋</button>
+    <button id="btnMedkit" class="mobile-btn">💊</button>
+  </div>
+
   <div id="introScreen">
     <div class="intro-text">
       <h1>圣玛丽医院</h1>
       <p>暴风雨之夜，你因车祸醒来，发现自己在废弃的医院中。</p>
-      <p>广播断断续续传来声音：</p>
-      <p class="quote">"恢复电力...需要找到4个保险丝...小心阴影..."</p>
+      <p>广播断断续续：</p>
+      <p class="quote">"恢复电力...找到4个保险丝...小心阴影..."</p>
     </div>
-    <button id="continueButton">开始求生</button>
+    <button id="continueButton">进入黑暗</button>
   </div>
 
   <div id="hud" style="display:none">
@@ -29,7 +42,6 @@
   <div id="vignette"></div>
   <div id="noise"></div>
   <div id="bloodOverlay"></div>
-  <div id="rainOverlay"></div>
 
   <div id="deathScreen" style="display:none">
     <h2>你死了</h2>

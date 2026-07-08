@@ -1,5 +1,5 @@
 * { margin:0; padding:0; box-sizing:border-box; }
-body { overflow:hidden; background:#000; font-family:'Courier New',monospace; user-select:none; }
+body { overflow:hidden; background:#000; font-family:'Courier New',monospace; user-select:none; touch-action:none; }
 canvas { display:block; }
 
 #introScreen {
@@ -54,10 +54,6 @@ canvas { display:block; }
   opacity:0; transition:opacity 0.2s;
   background:radial-gradient(circle, transparent 0%, rgba(100,0,0,0.4) 100%);
 }
-#rainOverlay {
-  position:fixed; inset:0; z-index:18; pointer-events:none;
-  opacity:0.3; background:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><line x1="10" y1="0" x2="10" y2="20" stroke="white" stroke-width="0.5" opacity="0.4"/><line x1="40" y1="10" x2="40" y2="40" stroke="white" stroke-width="0.5" opacity="0.3"/><line x1="70" y1="0" x2="70" y2="15" stroke="white" stroke-width="0.5" opacity="0.5"/><line x1="90" y1="20" x2="90" y2="50" stroke="white" stroke-width="0.5" opacity="0.2"/></svg>') repeat;
-}
 
 #deathScreen, #winScreen {
   position:fixed; inset:0; z-index:150;
@@ -73,3 +69,31 @@ button {
   border-radius:5px; cursor:pointer; transition:0.3s; font-family:inherit;
 }
 button:hover { background:#900; box-shadow:0 0 20px #a00; }
+
+/* 移动端控制 */
+#mobileControls {
+  position:fixed; inset:0; z-index:50; pointer-events:none;
+}
+#joystickMove, #joystickLook {
+  position:absolute; width:100px; height:100px;
+  background:rgba(255,255,255,0.15); border-radius:50%;
+  bottom:30px; pointer-events:auto;
+}
+#joystickMove { left:30px; }
+#joystickLook { right:30px; }
+#joystickMoveThumb, #joystickLookThumb {
+  position:absolute; width:40px; height:40px;
+  background:rgba(255,255,255,0.4); border-radius:50%;
+  top:30px; left:30px;
+}
+.mobile-btn {
+  position:absolute; width:50px; height:50px;
+  border-radius:50%; background:rgba(255,255,255,0.2);
+  border:2px solid rgba(255,255,255,0.4);
+  font-size:24px; color:#fff; display:flex;
+  align-items:center; justify-content:center;
+  pointer-events:auto;
+}
+#btnFlashlight { bottom:150px; right:30px; }
+#btnInteract { bottom:210px; right:30px; }
+#btnMedkit { bottom:270px; right:30px; }
