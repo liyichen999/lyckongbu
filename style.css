@@ -1,0 +1,129 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  overflow: hidden;
+  background: #000;
+  font-family: 'Courier New', monospace;
+  user-select: none;
+}
+canvas {
+  display: block;
+}
+
+#hud {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 20;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hud-item {
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 6px 14px;
+  border-radius: 5px;
+  color: #ccc;
+  font-size: 15px;
+  letter-spacing: 2px;
+  text-shadow: 0 0 6px #000;
+}
+.hud-item.danger {
+  color: #f44;
+  border-color: #f44;
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0%,100%{ text-shadow:0 0 8px #f00; }
+  50%{ text-shadow:0 0 20px #f00,0 0 30px #900; }
+}
+
+#centerMsg {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  pointer-events: none;
+  color: #fcc;
+  font-size: 26px;
+  letter-spacing: 3px;
+  text-align: center;
+  text-shadow: 0 0 20px red;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#hint {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  pointer-events: none;
+  color: #888;
+  font-size: 13px;
+  letter-spacing: 1px;
+  display: block;
+}
+
+#vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  box-shadow: inset 0 0 180px 60px rgba(0,0,0,0.9);
+}
+
+#noise {
+  position: fixed;
+  inset: 0;
+  z-index: 16;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: overlay;
+  background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3"/></filter><rect width="120" height="120" filter="url(#n)" opacity="0.08"/></svg>');
+}
+
+#startScreen, #deathScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.92);
+  color: #ddd;
+  text-align: center;
+}
+#deathScreen { display: none; }
+#startScreen h1 {
+  font-size: 3.5rem;
+  letter-spacing: 10px;
+  text-shadow: 0 0 30px #a00;
+  margin-bottom: 10px;
+}
+.subtitle { color: #999; letter-spacing: 4px; margin-bottom: 24px; }
+.lore { max-width: 500px; color: #aaa; line-height: 1.6; margin: 8px 0; }
+.controls { color: #777; font-size: 0.85rem; margin-top: 12px; }
+button {
+  margin-top: 24px;
+  padding: 14px 44px;
+  font-size: 1.2rem;
+  letter-spacing: 4px;
+  background: transparent;
+  color: #ddd;
+  border: 2px solid #900;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: 0.3s;
+  font-family: inherit;
+}
+button:hover { background: #900; box-shadow: 0 0 25px #a00; color: #fff; }
+#deathScreen h2 { font-size: 4rem; color: #f22; text-shadow: 0 0 40px #900; }

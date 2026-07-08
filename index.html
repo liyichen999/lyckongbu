@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>圣玛丽疗养院 · 3D 恐怖游戏</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="hud">
+    <div class="hud-item" id="keyHud">🔑 钥匙 0/3</div>
+    <div class="hud-item" id="healthHud">❤️ 理智 100</div>
+  </div>
+  <div id="centerMsg"></div>
+  <div id="hint">WASD 移动 · 鼠标环视 · F 手电筒 · 空格/左键互动</div>
+  <div id="vignette"></div>
+  <div id="noise"></div>
+
+  <div id="startScreen">
+    <h1>圣玛丽疗养院</h1>
+    <div class="subtitle">—— 1976年，一场大火 ——</div>
+    <div class="lore">三十年前，病人和医生全部葬身火海。<br>他们的灵魂仍在走廊徘徊。</div>
+    <div class="lore" style="color:#a66;">找到三把钥匙，打开地下通道的铁门。</div>
+    <div class="controls">⚠ 手电筒会暴露你的位置 · 黑暗或许能救你</div>
+    <button id="startButton">进入黑暗</button>
+  </div>
+
+  <div id="deathScreen">
+    <h2>你死了</h2>
+    <p>黑暗吞噬了你...</p>
+    <button id="restartButton">重新开始</button>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
