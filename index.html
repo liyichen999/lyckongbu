@@ -3,32 +3,48 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>圣玛丽疗养院 · 3D 恐怖游戏</title>
+  <title>圣玛丽疗养院 · 3D恐怖</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="hud">
+  <!-- 开场剧情界面 -->
+  <div id="introScreen">
+    <div class="intro-text">
+      <h1>圣玛丽疗养院</h1>
+      <p>1976年3月15日，一场大火吞噬了整栋建筑。</p>
+      <p>官方报告称电路老化，但幸存者说那是"它们"的复仇。</p>
+      <p>今天，你收到一封来自失踪调查员最后的邮件：</p>
+      <p class="quote">"真相在地下室，钥匙被它们藏在痛苦最集中的地方。别让灯熄灭。"</p>
+    </div>
+    <button id="continueButton">继续</button>
+  </div>
+
+  <!-- 游戏HUD -->
+  <div id="hud" style="display:none">
+    <div class="hud-item" id="objective">🎯 寻找3把钥匙，进入地下室</div>
     <div class="hud-item" id="keyHud">🔑 钥匙 0/3</div>
     <div class="hud-item" id="healthHud">❤️ 理智 100</div>
+    <div class="hud-item" id="batteryHud">🔋 手电筒 100%</div>
+    <div class="hud-item" id="noteHud" style="display:none">📄 按E阅读笔记</div>
   </div>
-  <div id="centerMsg"></div>
-  <div id="hint">WASD 移动 · 鼠标环视 · F 手电筒 · 空格/左键互动</div>
+
+  <div id="message"></div>
   <div id="vignette"></div>
   <div id="noise"></div>
+  <div id="bloodOverlay"></div>
 
-  <div id="startScreen">
-    <h1>圣玛丽疗养院</h1>
-    <div class="subtitle">—— 1976年，一场大火 ——</div>
-    <div class="lore">三十年前，病人和医生全部葬身火海。<br>他们的灵魂仍在走廊徘徊。</div>
-    <div class="lore" style="color:#a66;">找到三把钥匙，打开地下通道的铁门。</div>
-    <div class="controls">⚠ 手电筒会暴露你的位置 · 黑暗或许能救你</div>
-    <button id="startButton">进入黑暗</button>
+  <!-- 死亡界面 -->
+  <div id="deathScreen" style="display:none">
+    <h2>你死了</h2>
+    <p>黑暗永远吞噬了你...</p>
+    <button id="restartButton">重新开始</button>
   </div>
 
-  <div id="deathScreen">
-    <h2>你死了</h2>
-    <p>黑暗吞噬了你...</p>
-    <button id="restartButton">重新开始</button>
+  <!-- 胜利界面 -->
+  <div id="winScreen" style="display:none">
+    <h2>你逃出来了</h2>
+    <p>但那些低语，似乎跟着你回到了地面。</p>
+    <button id="restartButtonWin">再玩一次</button>
   </div>
 
   <script type="importmap">

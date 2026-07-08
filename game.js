@@ -1,44 +1,44 @@
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { createWallTexture, createFloorTexture, createBloodDecalTexture } from './textures.js';
+import { createWallTexture, createFloorTexture, createBloodTexture, createNoteTexture } from './textures.js';
 
-// ================== 音频引擎 ==================
+// ================== 音频 ==================
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx;
 function initAudio() {
-  if (!audioCtx) audioCtx = new AudioCtx();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if(!audioCtx) audioCtx = new AudioCtx();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
 }
-function playTone(freq, type, dur, vol=0.1) {
-  if (!audioCtx) return;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = type; osc.frequency.value = freq;
-  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
-  osc.connect(gain); gain.connect(audioCtx.destination);
-  osc.start(); osc.stop(audioCtx.currentTime+dur+0.05);
+function sfx(freq, type, dur, vol=0.1) {
+  if(!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type=type; o.frequency.value=freq;
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime+dur+0.05);
 }
-let droneOsc, droneGain;
-function startDrone() {
-  if (!audioCtx) return;
-  droneOsc = audioCtx.createOscillator();
-  droneGain = audioCtx.createGain();
-  droneOsc.type = 'sine'; droneOsc.frequency.value = 35;
-  droneGain.gain.value = 0.05;
-  droneOsc.connect(droneGain);
-  droneGain.connect(audioCtx.destination);
-  droneOsc.start();
+let ambientGain, ambientOsc;
+function startAmbient() {
+  if(!audioCtx) return;
+  ambientOsc = audioCtx.createOscillator();
+  ambientGain = audioCtx.createGain();
+  ambientOsc.type='sine'; ambientOsc.frequency.value=36;
+  ambientGain.gain.value=0.05;
+  ambientOsc.connect(ambientGain);
+  ambientGain.connect(audioCtx.destination);
+  ambientOsc.start();
 }
-function stopDrone() { try{droneOsc.stop();}catch(e){} }
+function stopAmbient() { try{ambientOsc.stop();}catch(e){} }
 
 // ================== 场景初始化 ==================
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x050505, 0.02);
-scene.background = new THREE.Color(0x050505);
+scene.fog = new THREE.FogExp2(0x040404, 0.015);
+scene.background = new THREE.Color(0x040404);
 
-const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.1, 40);
-camera.position.set(0, 1.7, 6);
+const camera = new THREE.PerspectiveCamera(68, innerWidth/innerHeight, 0.1, 50);
+camera.position.set(0, 1.7, 5);
 camera.rotation.order = 'YXZ';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -48,481 +48,404 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.8;
+renderer.toneMappingExposure = 0.85;
 document.body.appendChild(renderer.domElement);
 
 const controls = new PointerLockControls(camera, renderer.domElement);
 
-// DOM 元素
-const startScreen = document.getElementById('startScreen');
+// DOM元素
+const introScreen = document.getElementById('introScreen');
+const hud = document.getElementById('hud');
 const deathScreen = document.getElementById('deathScreen');
-const centerMsg = document.getElementById('centerMsg');
-const keyHud = document.getElementById('keyHud');
-const healthHud = document.getElementById('healthHud');
+const winScreen = document.getElementById('winScreen');
+const messageEl = document.getElementById('message');
+const bloodOverlay = document.getElementById('bloodOverlay');
+const noteHud = document.getElementById('noteHud');
+const objectiveEl = document.getElementById('objective');
 
 // ================== 游戏状态 ==================
 let gameStarted = false, gameOver = false;
 let keysCollected = 0, totalKeys = 3;
-let flashlightOn = true;
+let flashlightOn = true, battery = 100;
 let playerHealth = 100;
 let lastFootstep = 0, lastHeartbeat = 0;
 let shakeAmount = 0;
-const playerRadius = 0.45;
+const playerRadius = 0.4;
+let nearNote = null;
 
-// ================== 纹理资源 ==================
+// ================== 纹理 ==================
 const wallTex = createWallTexture();
 const floorTex = createFloorTexture();
-const bloodTex = createBloodDecalTexture();
+const bloodTex = createBloodTexture();
+const noteTex1 = createNoteTexture('调查员笔记 #3\n它们害怕光，但更恨光。\n钥匙在痛苦的房间。\n地下室入口在停尸房。');
+const noteTex2 = createNoteTexture('病人日记\n护士长总是半夜尖叫。\n她说墙里有眼睛。');
+const noteTex3 = createNoteTexture('院长的忏悔\n我打开了不该开的门。\n愿上帝宽恕我们。');
 
-const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85 });
-const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.75 });
-const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.9 });
-const bloodMat = new THREE.MeshStandardMaterial({ map: bloodTex, roughness: 0.8, transparent: true, opacity: 0.7, depthWrite: false });
+const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness:0.85 });
+const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness:0.75 });
+const ceilingMat = new THREE.MeshStandardMaterial({ color:0x3a3a3a, roughness:0.9 });
+const bloodMat = new THREE.MeshStandardMaterial({ map: bloodTex, roughness:0.8, transparent:true, opacity:0.7, depthWrite:false });
 
-// ================== 碰撞体管理 ==================
+// ================== 碰撞系统 ==================
 const colliders = [];
-function addCollider(mesh) {
-  const box = new THREE.Box3().setFromObject(mesh);
-  colliders.push({ min: box.min.clone(), max: box.max.clone() });
+function addCollider(meshOrFunc) {
+  if(typeof meshOrFunc === 'function') {
+    const box = meshOrFunc();
+    colliders.push({ min:box.min.clone(), max:box.max.clone() });
+  } else {
+    const box = new THREE.Box3().setFromObject(meshOrFunc);
+    colliders.push({ min:box.min.clone(), max:box.max.clone() });
+  }
 }
-function addBoxCollider(x,y,z,w,h,d) {
-  const half = new THREE.Vector3(w/2, h/2, d/2);
+function boxCollider(x,y,z,w,h,d) {
+  const half = new THREE.Vector3(w/2,h/2,d/2);
   colliders.push({
     min: new THREE.Vector3(x-half.x, y-half.y, z-half.z),
     max: new THREE.Vector3(x+half.x, y+half.y, z+half.z)
   });
 }
 
-// ================== 高级模型构建函数 ==================
-function createHospitalBed(x, y, z) {
-  const group = new THREE.Group();
-  const metalMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.4, metalness: 0.7 });
-  const mattressMat = new THREE.MeshStandardMaterial({ color: 0x9a8a7a, roughness: 0.9 });
-  const pillowMat = new THREE.MeshStandardMaterial({ color: 0xdad5cc, roughness: 0.8 });
-
-  // 床腿
-  const legGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.6, 8);
-  for (let ix of [-0.7, 0.7]) {
-    for (let iz of [-1.0, 1.0]) {
-      const leg = new THREE.Mesh(legGeo, metalMat);
-      leg.position.set(ix, 0.3, iz);
-      leg.castShadow = true; leg.receiveShadow = true;
-      group.add(leg);
-    }
-  }
-  // 床架边框
-  const frameGeo = new THREE.BoxGeometry(1.6, 0.08, 2.2);
-  const frame = new THREE.Mesh(frameGeo, metalMat);
-  frame.position.set(0, 0.62, 0);
-  frame.castShadow = true; frame.receiveShadow = true;
-  group.add(frame);
-  // 床板
-  const boardGeo = new THREE.BoxGeometry(1.5, 0.06, 2.1);
-  const board = new THREE.Mesh(boardGeo, metalMat);
-  board.position.set(0, 0.5, 0);
-  board.receiveShadow = true;
-  group.add(board);
-  // 床垫
-  const mattressGeo = new THREE.BoxGeometry(1.3, 0.15, 1.9);
-  const mattress = new THREE.Mesh(mattressGeo, mattressMat);
-  mattress.position.set(0, 0.63, 0);
-  mattress.castShadow = true; mattress.receiveShadow = true;
-  group.add(mattress);
-  // 枕头
-  const pillowGeo = new THREE.BoxGeometry(0.5, 0.12, 0.7);
-  const pillow = new THREE.Mesh(pillowGeo, pillowMat);
-  pillow.position.set(0, 0.73, -0.7);
-  pillow.castShadow = true; pillow.receiveShadow = true;
-  group.add(pillow);
-  // 床头板
-  const headboardGeo = new THREE.BoxGeometry(1.5, 0.7, 0.08);
-  const headboard = new THREE.Mesh(headboardGeo, metalMat);
-  headboard.position.set(0, 1.0, -1.15);
-  headboard.castShadow = true; headboard.receiveShadow = true;
-  group.add(headboard);
-
-  group.position.set(x, y, z);
-  return group;
-}
-
-function createWheelchair(x, y, z) {
-  const group = new THREE.Group();
-  const metal = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, roughness: 0.4, metalness: 0.8 });
-  const wheelGeo = new THREE.TorusGeometry(0.28, 0.05, 8, 16);
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111, roughness: 0.6, metalness: 0.4 });
-
-  // 大轮
-  const wheelL = new THREE.Mesh(wheelGeo, wheelMat);
-  wheelL.rotation.x = Math.PI/2;
-  wheelL.position.set(-0.45, 0.3, 0);
-  group.add(wheelL);
-  const wheelR = wheelL.clone();
-  wheelR.position.set(0.45, 0.3, 0);
-  group.add(wheelR);
-  // 小轮
-  const smallWheelGeo = new THREE.TorusGeometry(0.12, 0.04, 6, 12);
-  const swL = new THREE.Mesh(smallWheelGeo, wheelMat);
-  swL.rotation.x = Math.PI/2;
-  swL.position.set(-0.35, 0.1, 0.6);
-  group.add(swL);
-  const swR = swL.clone();
-  swR.position.set(0.35, 0.1, 0.6);
-  group.add(swR);
-  // 框架
-  const frame1 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.9, 8), metal);
-  frame1.position.set(-0.4, 0.65, 0.2);
-  group.add(frame1);
-  const frame2 = frame1.clone();
-  frame2.position.set(0.4, 0.65, 0.2);
-  group.add(frame2);
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.5), metal);
-  seat.position.set(0, 0.55, 0.2);
-  group.add(seat);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.08), metal);
-  back.position.set(0, 0.8, -0.05);
-  group.add(back);
-
-  group.position.set(x, y, z);
-  return group;
-}
-
-function createIVStand(x, y, z) {
-  const group = new THREE.Group();
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x7a7a7a, roughness: 0.3, metalness: 0.9 });
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.2, 8), poleMat);
-  pole.position.y = 1.1;
-  group.add(pole);
-  const hookGeo = new THREE.TorusGeometry(0.15, 0.04, 6, 12);
-  const hook = new THREE.Mesh(hookGeo, poleMat);
-  hook.position.y = 2.15;
-  group.add(hook);
-  const baseGeo = new THREE.CylinderGeometry(0.25, 0.3, 0.1, 8);
-  const base = new THREE.Mesh(baseGeo, poleMat);
-  base.position.y = 0.05;
-  group.add(base);
-  group.position.set(x, y, z);
-  return group;
-}
-
-function createSurgeryLight(x, y, z) {
-  const group = new THREE.Group();
-  const armMat = new THREE.MeshStandardMaterial({ color: 0x888, roughness: 0.3, metalness: 0.8 });
-  const lightMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.2, metalness: 0.5, emissive: 0x222222 });
-  const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8), armMat);
-  arm1.position.set(0, 2.0, 0);
-  arm1.rotation.x = Math.PI/2;
-  group.add(arm1);
-  const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.6, 8), armMat);
-  arm2.position.set(0.4, 1.6, 0);
-  arm2.rotation.z = Math.PI/2;
-  group.add(arm2);
-  const lampGeo = new THREE.CylinderGeometry(0.2, 0.25, 0.15, 16);
-  const lamp = new THREE.Mesh(lampGeo, lightMat);
-  lamp.position.set(0.8, 1.6, 0);
-  group.add(lamp);
-  group.position.set(x, y, z);
-  return group;
-}
-
-function createBodyBag(x, y, z) {
-  const group = new THREE.Group();
-  const bagMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7 });
-  const bag = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 2.0), bagMat);
-  bag.position.y = 0.2;
-  group.add(bag);
-  const zipperGeo = new THREE.BoxGeometry(0.05, 0.05, 1.8);
-  const zipperMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.3, metalness: 0.9 });
-  const zipper = new THREE.Mesh(zipperGeo, zipperMat);
-  zipper.position.set(0, 0.35, 0);
-  group.add(zipper);
-  group.position.set(x, y, z);
-  return group;
-}
-
-// ================== 场景构建 ==================
+// ================== 世界构建（三层结构） ==================
 const world = new THREE.Group();
 scene.add(world);
 
-// 走廊
-const CW = 3.2, CH = 3.2, CL = 15;
-function addWallSegment(x, y, z, w, h, d) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
-  mesh.position.set(x, y, z);
-  mesh.castShadow = true; mesh.receiveShadow = true;
-  world.add(mesh);
-  addBoxCollider(x, y, z, w, h, d);
+function wall(x,y,z,w,h,d) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), wallMat);
+  m.position.set(x,y,z); m.castShadow=m.receiveShadow=true;
+  world.add(m); boxCollider(x,y,z,w,h,d);
 }
 
-addWallSegment(0, 0, 0, CW, 0.15, CL); // floor
-addWallSegment(0, CH, 0, CW, 0.15, CL); // ceiling
-addWallSegment(-CW/2, CH/2, 0, 0.2, CH, CL); // left wall
-addWallSegment(CW/2, CH/2, 0, 0.2, CH, CL); // right wall
-addWallSegment(0, CH/2, -CL/2, CW, CH, 0.2); // back wall
+const CH = 3.2;
 
-// 前墙门洞
-addWallSegment(-CW/2-0.5, CH/2, CL/2, 0.6, CH, 0.2);
-addWallSegment(CW/2+0.5, CH/2, CL/2, 0.6, CH, 0.2);
+// --- 一层：主走廊与病房区 ---
+const CW = 3.2, CL = 18;
+wall(0,0,0, CW,0.15, CL); // floor
+wall(0,CH,0, CW,0.15, CL); // ceiling
+wall(-CW/2, CH/2, 0, 0.2, CH, CL);
+wall(CW/2, CH/2, 0, 0.2, CH, CL);
+wall(0, CH/2, -CL/2, CW, CH, 0.2);
 
-// 房间1：病房（左侧）
-const r1x = -4.2, r1z = -3.5, r1w = 4.4, r1d = 5.5;
-addWallSegment(r1x,0,r1z, r1w,0.15,r1d); // floor
-addWallSegment(r1x,CH,r1z, r1w,0.15,r1d); // ceiling
-addWallSegment(r1x-r1w/2, CH/2, r1z, 0.2, CH, r1d);
-addWallSegment(r1x+r1w/2, CH/2, r1z, 0.2, CH, r1d);
-addWallSegment(r1x, CH/2, r1z-r1d/2, r1w, CH, 0.2);
+// 左侧病房
+const r1x = -4.2, r1z = -4, r1w=4.2, r1d=6;
+wall(r1x,0,r1z, r1w,0.15,r1d);
+wall(r1x,CH,r1z, r1w,0.15,r1d);
+wall(r1x-r1w/2, CH/2, r1z, 0.2,CH,r1d);
+wall(r1x+r1w/2, CH/2, r1z, 0.2,CH,r1d);
+wall(r1x, CH/2, r1z-r1d/2, r1w,CH,0.2);
 
-const bed = createHospitalBed(r1x-0.6, 0, r1z-0.8);
-world.add(bed); addCollider(bed);
-const wheelchair = createWheelchair(r1x+1.0, 0, r1z+1.0);
+// 右侧手术室
+const r2x = 4.2, r2z = 3.5, r2w=4.2, r2d=5.5;
+wall(r2x,0,r2z, r2w,0.15,r2d);
+wall(r2x,CH,r2z, r2w,0.15,r2d);
+wall(r2x-r2w/2, CH/2, r2z, 0.2,CH,r2d);
+wall(r2x+r2w/2, CH/2, r2z, 0.2,CH,r2d);
+wall(r2x, CH/2, r2z+r2d/2, r2w,CH,0.2);
+
+// --- 二层：走廊延伸至停尸房（地下室入口） ---
+const morgueZ = -CL/2 - 3;
+wall(0,0,morgueZ, CW,0.15, 5);
+wall(0,CH,morgueZ, CW,0.15, 5);
+wall(-CW/2, CH/2, morgueZ, 0.2,CH,5);
+wall(CW/2, CH/2, morgueZ, 0.2,CH,5);
+wall(0, CH/2, morgueZ-2.5, CW,CH,0.2);
+
+// --- 三层：地下室（通过停尸房活板门进入） ---
+const basementY = -3.2;
+const baseGroup = new THREE.Group();
+baseGroup.position.set(0, basementY, morgueZ-4);
+const BW = 4.5, BH = 2.8, BL = 7;
+const baseWallMat = new THREE.MeshStandardMaterial({ color:0x2a2a2a, roughness:0.9 });
+function bwall(x,y,z,w,h,d) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), baseWallMat);
+  m.position.set(x,y,z); m.castShadow=m.receiveShadow=true;
+  baseGroup.add(m);
+  // 碰撞体需转换到世界坐标
+  const worldPos = m.position.clone().add(baseGroup.position);
+  boxCollider(worldPos.x, worldPos.y, worldPos.z, w, h, d);
+}
+bwall(0,0,0, BW,0.1, BL);
+bwall(0,BH,0, BW,0.1, BL);
+bwall(-BW/2, BH/2, 0, 0.2, BH, BL);
+bwall(BW/2, BH/2, 0, 0.2, BH, BL);
+bwall(0, BH/2, -BL/2, BW, BH, 0.2);
+world.add(baseGroup);
+
+// 地下室活板门（可交互）
+const trapdoor = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.05,0.8), new THREE.MeshStandardMaterial({color:0x4a3a2a}));
+trapdoor.position.set(0,0.05, morgueZ-1.5);
+trapdoor.rotation.x = -Math.PI/2;
+world.add(trapdoor);
+trapdoor.userData.isTrapdoor = true;
+
+// ================== 模型与家具 ==================
+// 病床
+function bed(x,y,z) {
+  const g = new THREE.Group();
+  const m = new THREE.MeshStandardMaterial({color:0x5a5a5a, roughness:0.4, metalness:0.7});
+  for(let ix of[-0.7,0.7]) for(let iz of[-1.1,1.1]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.5,6), m);
+    leg.position.set(ix,0.25,iz); g.add(leg);
+  }
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.06,2.4), m);
+  frame.position.set(0,0.5,0); g.add(frame);
+  const mattress = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.14,2.2), new THREE.MeshStandardMaterial({color:0x9a8a7a}));
+  mattress.position.set(0,0.6,0); g.add(mattress);
+  g.position.set(x,y,z);
+  world.add(g); addCollider(g);
+}
+bed(r1x-0.5,0,r1z-1);
+bed(r1x+0.8,0,r1z+1.2);
+
+// 手术台
+const opTable = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.1,2.6), new THREE.MeshStandardMaterial({color:0x7a7a7a, roughness:0.3, metalness:0.9}));
+opTable.position.set(r2x,0.8,r2z-0.2);
+world.add(opTable); addCollider(opTable);
+
+// 轮椅（可移动动画）
+const wheelchair = new THREE.Group();
+const wMat = new THREE.MeshStandardMaterial({color:0x4a4a4a, roughness:0.5, metalness:0.8});
+const wheelGeo = new THREE.TorusGeometry(0.22,0.04,6,10);
+for(let ix of[-0.45,0.45]) {
+  const w = new THREE.Mesh(wheelGeo, wMat);
+  w.rotation.x=Math.PI/2; w.position.set(ix,0.25,0); wheelchair.add(w);
+}
+const frame = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.8,6), wMat);
+frame.position.set(-0.4,0.6,0.2); wheelchair.add(frame);
+frame.clone().position.set(0.4,0.6,0.2); wheelchair.add(frame.clone());
+const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.05,0.5), wMat);
+seat.position.set(0,0.5,0.2); wheelchair.add(seat);
+wheelchair.position.set(r1x+1.5,0,r1z-0.8);
 world.add(wheelchair); addCollider(wheelchair);
-const ivStand = createIVStand(r1x-0.8, 0, r1z+1.4);
-world.add(ivStand); addCollider(ivStand);
-const bloodDecal1 = new THREE.Mesh(new THREE.PlaneGeometry(1.2,1.6), bloodMat);
-bloodDecal1.rotation.x = -Math.PI/2;
-bloodDecal1.position.set(r1x-0.5,0.1,r1z+0.3);
-world.add(bloodDecal1);
 
-// 房间2：手术室（右侧）
-const r2x = 4.2, r2z = 2.8, r2w = 4.4, r2d = 5.0;
-addWallSegment(r2x,0,r2z, r2w,0.15,r2d);
-addWallSegment(r2x,CH,r2z, r2w,0.15,r2d);
-addWallSegment(r2x-r2w/2, CH/2, r2z, 0.2, CH, r2d);
-addWallSegment(r2x+r2w/2, CH/2, r2z, 0.2, CH, r2d);
-addWallSegment(r2x, CH/2, r2z+r2d/2, r2w, CH, 0.2);
-
-const surgeryLight = createSurgeryLight(r2x, 2.4, r2z-0.2);
-world.add(surgeryLight); addCollider(surgeryLight);
-const bodyBag = createBodyBag(r2x+0.8, 0, r2z-0.5);
-world.add(bodyBag); addCollider(bodyBag);
-const table = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.1,2.4), new THREE.MeshStandardMaterial({color:0x7a7a7a, roughness:0.3, metalness:0.8}));
-table.position.set(r2x,0.8,r2z-0.3);
-world.add(table); addCollider(table);
-
-// 房间3：储藏室（尽头）
-const r3z = -CL/2 + 2.8, r3w = CW-0.8, r3d = 3.2;
-addWallSegment(0,0,r3z, r3w,0.15,r3d);
-addWallSegment(0,CH,r3z, r3w,0.15,r3d);
-addWallSegment(-r3w/2, CH/2, r3z, 0.2, CH, r3d);
-addWallSegment(r3w/2, CH/2, r3z, 0.2, CH, r3d);
-addWallSegment(0, CH/2, r3z-r3d/2, r3w, CH, 0.2);
-
-// 出口门
-const exitDoor = new THREE.Mesh(new THREE.BoxGeometry(1.3,2.4,0.12), new THREE.MeshStandardMaterial({color:0x4a2a1a, roughness:0.6}));
-exitDoor.position.set(0,1.2,-CL/2+0.06);
-world.add(exitDoor); addCollider(exitDoor);
-
-// 钥匙（带发光）
-const keyMeshes = [];
-function createKey(x,y,z) {
-  const group = new THREE.Group();
-  const keyMat = new THREE.MeshStandardMaterial({ color: 0xe0c060, roughness:0.3, metalness:0.7, emissive:0x332200 });
-  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,0.08,12), keyMat);
-  head.rotation.x = Math.PI/2; group.add(head);
-  const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.45,0.05), keyMat);
-  shaft.position.y = -0.26; group.add(shaft);
-  const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.12,0.06,0.05), keyMat);
-  tooth.position.set(0.04,-0.42,0); group.add(tooth);
-  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.2,8,8), new THREE.MeshBasicMaterial({color:0xffdd88, transparent:true, opacity:0.4, depthWrite:false}));
-  group.add(glow);
-  group.position.set(x,y,z);
-  group.userData.isKey = true;
-  world.add(group);
-  keyMeshes.push(group);
+// 笔记（可交互）
+function addNote(x,y,z,tex) {
+  const note = new THREE.Mesh(new THREE.PlaneGeometry(0.3,0.2), new THREE.MeshBasicMaterial({map:tex}));
+  note.position.set(x,y,z);
+  note.userData.isNote = true;
+  world.add(note);
+  return note;
 }
-createKey(r1x-0.5, 0.9, r1z-1.8);
-createKey(r2x+0.3, 0.85, r2z+1.6);
-createKey(0.7, 1.1, r3z+1.0);
+const note1 = addNote(r1x, 1.2, r1z+1.8, noteTex1);
+const note2 = addNote(r2x-0.8, 1.0, r2z-0.5, noteTex2);
+const note3 = addNote(0, 0.9, morgueZ-0.8, noteTex3);
 
-// 手电筒
+// 钥匙
+const keys = [];
+function key(x,y,z) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({color:0xe0c060, roughness:0.3, metalness:0.7, emissive:0x332200});
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.06,8), mat));
+  const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.4,0.04), mat);
+  shaft.position.y=-0.22; g.add(shaft);
+  const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.05,0.04), mat);
+  tooth.position.set(0.03,-0.36,0); g.add(tooth);
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.15,6,6), new THREE.MeshBasicMaterial({color:0xffdd88, transparent:true, opacity:0.6})));
+  g.position.set(x,y,z); g.userData.isKey=true;
+  world.add(g); keys.push(g);
+}
+key(r1x-1.2, 0.85, r1z-2.5);
+key(r2x+1.2, 0.9, r2z+2.2);
+key(1.1, 0.7, morgueZ-3.8); // 地下室
+
+// ================== 灯光 ==================
 const flashlight = new THREE.SpotLight(0xffeedd);
-flashlight.angle = 0.45; flashlight.penumbra = 0.35; flashlight.decay = 1.8; flashlight.distance = 20;
-flashlight.intensity = 1.8; flashlight.castShadow = true;
+flashlight.angle=0.4; flashlight.penumbra=0.3; flashlight.decay=1.5; flashlight.distance=16;
+flashlight.intensity=1.5; flashlight.castShadow=true;
 flashlight.shadow.mapSize.set(512,512);
 camera.add(flashlight);
-flashlight.target.position.set(0,0,-1.5);
-camera.add(flashlight.target);
+flashlight.target.position.set(0,0,-1.5); camera.add(flashlight.target);
 
-// 环境光与闪烁灯
-scene.add(new THREE.AmbientLight(0x0a0a18, 0.3));
-const corridorLights = [];
-for (let i=0;i<5;i++) {
-  const light = new THREE.PointLight(0xcc9966, 0.6, 9, 1.5);
-  light.position.set(0, CH-0.4, -CL/2+2+i*2.5);
-  world.add(light);
-  corridorLights.push({light, base:0.6, speed:0.03+Math.random()*0.07, phase:Math.random()*Math.PI*2});
+scene.add(new THREE.AmbientLight(0x0a0a18, 0.25));
+const flickerLights = [];
+for(let i=0;i<8;i++) {
+  const l = new THREE.PointLight(0xcc9966, 0.5, 8, 1.5);
+  l.position.set(0, CH-0.3, -CL/2+1.5 + i*2.3);
+  world.add(l);
+  flickerLights.push({light:l, base:0.5});
 }
 
-// 幽灵模型（复杂）
-const ghostGroup = new THREE.Group();
-const ghostMat = new THREE.MeshStandardMaterial({color:0x1a2a1a, roughness:0.4, metalness:0.1, transparent:true, opacity:0.6, emissive:0x0a1a0a});
-const body = new THREE.Mesh(new THREE.ConeGeometry(0.5,1.7,10), ghostMat);
-body.position.y = 0.85; ghostGroup.add(body);
-const head = new THREE.Mesh(new THREE.SphereGeometry(0.35,10,8), ghostMat);
-head.position.y = 1.75; ghostGroup.add(head);
-// 破烂布料
-for (let i=0;i<6;i++) {
-  const ragGeo = new THREE.CylinderGeometry(0.08,0.15,0.6,6);
-  const rag = new THREE.Mesh(ragGeo, ghostMat);
-  rag.position.set((Math.random()-0.5)*0.7, 0.4+Math.random()*0.6, (Math.random()-0.5)*0.7);
-  rag.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
-  ghostGroup.add(rag);
-}
-const eyeGeo = new THREE.SphereGeometry(0.1,8,8);
-const eyeMat = new THREE.MeshBasicMaterial({color:0xff2200});
-const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-leftEye.position.set(-0.13,1.82,0.28); ghostGroup.add(leftEye);
-const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-rightEye.position.set(0.13,1.82,0.28); ghostGroup.add(rightEye);
-ghostGroup.position.set(2,0,-2);
-world.add(ghostGroup);
-
+// ================== 幽灵 ==================
+const ghost = new THREE.Group();
+const gMat = new THREE.MeshStandardMaterial({color:0x1a2a1a, roughness:0.3, transparent:true, opacity:0.55, emissive:0x0a1a0a});
+ghost.add(new THREE.Mesh(new THREE.ConeGeometry(0.5,1.7,8), gMat)).position.y=0.85;
+ghost.add(new THREE.Mesh(new THREE.SphereGeometry(0.35,8,6), gMat)).position.y=1.75;
+const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08,6,6), new THREE.MeshBasicMaterial({color:0xff2200}));
+eye.position.set(-0.12,1.8,0.28); ghost.add(eye);
+eye.clone().position.set(0.12,1.8,0.28); ghost.add(eye);
+ghost.position.set(2,0,-3);
+world.add(ghost);
 const ghostAI = {
-  pos: new THREE.Vector3(2,0,-2),
-  patrolPoints: [new THREE.Vector3(2,0,-3), new THREE.Vector3(-1.5,0,-1), new THREE.Vector3(3.5,0,2.5), new THREE.Vector3(-3,0,-4), new THREE.Vector3(0,0,2)],
-  idx:0, chase:false, speed:0.7, chaseSpeed:2.6, lastScare:0
+  pos: new THREE.Vector3(2,0,-3),
+  patrol: [new THREE.Vector3(2,0,-5), new THREE.Vector3(-2,0,-1), new THREE.Vector3(4,0,2), new THREE.Vector3(-4,0,-3)],
+  idx:0, chase:false, speed:0.55, chaseSpeed:2.5, lastScare:0
 };
 
-// 粒子
-const dustGeo = new THREE.BufferGeometry();
-const dustPos = new Float32Array(500*3);
-for(let i=0;i<500*3;i+=3){dustPos[i]=(Math.random()-0.5)*16; dustPos[i+1]=Math.random()*3.5; dustPos[i+2]=(Math.random()-0.5)*16;}
-dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos,3));
-const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({color:0x999999, size:0.025, transparent:true, opacity:0.5, blending:THREE.AdditiveBlending}));
-world.add(dust);
-
-// ================== 游戏逻辑 ==================
-function toggleFlashlight() { flashlightOn=!flashlightOn; flashlight.intensity=flashlightOn?1.8:0.03; }
-function showMsg(t,d=2){centerMsg.textContent=t;centerMsg.style.opacity=1;clearTimeout(window._t);window._t=setTimeout(()=>centerMsg.style.opacity=0,d*1000);}
+// ================== 交互逻辑 ==================
+function showMessage(text, dur=2.5) {
+  messageEl.textContent=text; messageEl.style.opacity=1;
+  clearTimeout(window._msgT); window._msgT=setTimeout(()=>messageEl.style.opacity=0, dur*1000);
+}
 function updateHUD() {
-  keyHud.textContent = `🔑 钥匙 ${keysCollected}/${totalKeys}`;
-  healthHud.textContent = `❤️ 理智 ${Math.floor(playerHealth)}`;
-  healthHud.classList.toggle('danger', playerHealth<30);
+  document.getElementById('keyHud').textContent = `🔑 钥匙 ${keysCollected}/${totalKeys}`;
+  document.getElementById('healthHud').textContent = `❤️ 理智 ${Math.floor(playerHealth)}`;
+  document.getElementById('batteryHud').textContent = `🔋 手电筒 ${Math.floor(battery)}%`;
+  if(playerHealth<30) document.getElementById('healthHud').classList.add('danger');
+  else document.getElementById('healthHud').classList.remove('danger');
+  if(battery<20) document.getElementById('batteryHud').classList.add('danger');
+  else document.getElementById('batteryHud').classList.remove('danger');
+  if(keysCollected>=totalKeys) objectiveEl.textContent='🚪 前往地下室活板门！';
 }
-
-function interact() {
-  if(!gameStarted||gameOver) return;
-  const p = camera.position;
-  for(let i=keyMeshes.length-1;i>=0;i--) {
-    if(p.distanceTo(keyMeshes[i].position)<2.0) {
-      world.remove(keyMeshes[i]); keyMeshes.splice(i,1); keysCollected++;
-      playTone(660,'sine',0.15); playTone(880,'sine',0.2);
-      showMsg(`🔑 找到钥匙！(${keysCollected}/${totalKeys})`);
-      updateHUD(); return;
-    }
-  }
-  if(p.distanceTo(exitDoor.position)<2.5) {
-    if(keysCollected>=totalKeys) {
-      showMsg('大门打开了！你逃出去了！',3); gameOver=true; stopDrone();
-      setTimeout(()=>{alert('🏆 你成功逃离了圣玛丽疗养院！');location.reload();},2000);
-    } else showMsg(`🔒 还需要 ${totalKeys-keysCollected} 把钥匙`);
-  }
-}
-
-function playerDeath() {
-  if(gameOver) return;
-  gameOver=true; deathScreen.style.display='flex'; controls.unlock(); stopDrone();
-  playTone(200,'sawtooth',0.8); playTone(40,'sawtooth',2);
-}
-
-// 碰撞检测与响应
 function checkCollision(pos) {
   for(const c of colliders) {
     if(pos.x+playerRadius > c.min.x && pos.x-playerRadius < c.max.x &&
-       pos.y+0.3 > c.min.y && pos.y-1.4 < c.max.y &&
-       pos.z+playerRadius > c.min.z && pos.z-playerRadius < c.max.z) {
-      return true;
-    }
+       pos.y+0.25 > c.min.y && pos.y-1.5 < c.max.y &&
+       pos.z+playerRadius > c.min.z && pos.z-playerRadius < c.max.z) return true;
   }
   return false;
 }
+function interact() {
+  if(!gameStarted||gameOver) return;
+  const p = camera.position;
+  // 钥匙
+  for(let i=keys.length-1;i>=0;i--) {
+    if(p.distanceTo(keys[i].position)<2.2) {
+      world.remove(keys[i]); keys.splice(i,1); keysCollected++;
+      sfx(660,'sine',0.15); sfx(880,'sine',0.2);
+      showMessage(`🔑 找到钥匙！(${keysCollected}/${totalKeys})`);
+      updateHUD(); return;
+    }
+  }
+  // 笔记
+  for(const note of [note1,note2,note3]) {
+    if(note && p.distanceTo(note.position)<2.0) {
+      showMessage('你阅读了笔记...', 3);
+      sfx(400,'sine',0.3);
+      break;
+    }
+  }
+  // 活板门（需钥匙）
+  if(p.distanceTo(trapdoor.position)<2.5) {
+    if(keysCollected>=totalKeys) {
+      showMessage('你打开了活板门，进入地下室...', 2);
+      camera.position.set(0, basementY+1.7, morgueZ-4);
+      objectiveEl.textContent='🎯 在地下室找到出路！';
+    } else {
+      showMessage('活板门被锁住了，需要3把钥匙');
+    }
+  }
+  // 出口（地下室尽头）
+  if(camera.position.y < -2 && p.z < morgueZ-7) {
+    winScreen.style.display='flex'; gameOver=true; stopAmbient(); controls.unlock();
+  }
+}
 
-// 游戏循环
+// ================== 动画循环 ==================
 const clock = new THREE.Clock();
+let timeAccum=0;
 function animate() {
   requestAnimationFrame(animate);
-  const delta = Math.min(clock.getDelta(),0.15);
-  
+  const delta = Math.min(clock.getDelta(), 0.15);
+  timeAccum += delta;
+
   if(gameStarted && !gameOver && controls.isLocked) {
+    // 移动
     const move = new THREE.Vector3();
     if(keyState.w) move.z-=1; if(keyState.s) move.z+=1;
     if(keyState.a) move.x-=1; if(keyState.d) move.x+=1;
     if(move.length()>0) {
       move.normalize();
-      const oldPos = camera.position.clone();
+      const old = camera.position.clone();
       controls.moveRight(move.x*3.8*delta);
       controls.moveForward(-move.z*3.8*delta);
-      if(checkCollision(camera.position)) camera.position.copy(oldPos);
-      if(Date.now()-lastFootstep>380){playTone(70+Math.random()*30,'triangle',0.06); lastFootstep=Date.now();}
+      if(checkCollision(camera.position)) camera.position.copy(old);
+      if(Date.now()-lastFootstep>400){sfx(70+Math.random()*30,'triangle',0.05); lastFootstep=Date.now();}
     }
+    // 手电筒
+    if(flashlightOn) battery-=2.5*delta;
+    if(battery<=0){battery=0; flashlightOn=false; flashlight.intensity=0.03; showMessage('⚠ 手电筒没电了！');}
+    else flashlight.intensity=flashlightOn?1.5:0.03;
+    updateHUD();
+
     // 幽灵AI
     const gp = ghostAI.pos;
     const dist = gp.distanceTo(camera.position);
-    ghostAI.chase = (dist<7.5 && flashlightOn) || dist<4;
-    const target = ghostAI.chase ? camera.position.clone() : ghostAI.patrolPoints[ghostAI.idx];
+    ghostAI.chase = (dist<7 && flashlightOn) || dist<3.5;
+    const target = ghostAI.chase ? camera.position.clone() : ghostAI.patrol[ghostAI.idx];
     const dir = new THREE.Vector3().subVectors(target, gp).normalize();
-    gp.add(dir.multiplyScalar((ghostAI.chase?2.6:0.55)*delta));
-    ghostGroup.position.copy(gp);
-    ghostGroup.lookAt(camera.position.x, gp.y, camera.position.z);
-    if(dist<0.9) { playerHealth-=50*delta; if(playerHealth<=0) playerDeath(); }
-    if(dist<5 && Date.now()-ghostAI.lastScare>6000) { ghostAI.lastScare=Date.now(); playTone(180,'sawtooth',0.5); }
-    if(dist<3 && Math.random()<0.01) showMsg('有什么东西在附近...',1.5);
-    // 理智恢复
-    if(dist>6) playerHealth=Math.min(100,playerHealth+4*delta);
-    updateHUD();
+    gp.add(dir.multiplyScalar((ghostAI.chase?2.8:0.55)*delta));
+    ghost.position.copy(gp);
+    ghost.lookAt(camera.position.x, gp.y, camera.position.z);
+    if(dist<0.85) {
+      playerHealth-=60*delta;
+      bloodOverlay.style.opacity=0.5;
+      shakeAmount=Math.max(shakeAmount,0.3);
+      if(playerHealth<=0) playerDeath();
+    } else bloodOverlay.style.opacity=0;
+    if(dist>7) playerHealth=Math.min(100, playerHealth+3*delta);
+    if(dist<5 && Date.now()-ghostAI.lastScare>8000) {
+      ghostAI.lastScare=Date.now(); sfx(180,'sawtooth',0.5); showMessage('有什么东西在靠近...',1.5);
+    }
+    if(dist<6 && Date.now()-lastHeartbeat>700){sfx(45,'sine',0.2); lastHeartbeat=Date.now();}
+    // 轮椅动画（惊吓）
+    if(dist<6 && Math.random()<0.002) {
+      wheelchair.position.x += (Math.random()-0.5)*0.2;
+      sfx(80,'square',0.2);
+    }
+    // 屏幕震动
+    if(shakeAmount>0.001){
+      camera.position.x+=(Math.random()-0.5)*shakeAmount*0.06;
+      camera.position.y+=(Math.random()-0.5)*shakeAmount*0.04;
+      shakeAmount*=Math.exp(-5*delta);
+    }
   }
-  // 闪烁灯
-  corridorLights.forEach(l=>l.light.intensity=l.base*(0.5+Math.sin(performance.now()*0.01*l.speed+l.phase)*0.2+Math.random()*0.15));
-  dust.rotation.y+=delta*0.02;
+  // 灯光闪烁
+  flickerLights.forEach(l=>l.light.intensity=l.base*(0.4+Math.sin(timeAccum*2)*0.3+Math.random()*0.2));
   renderer.render(scene, camera);
 }
 
-// 输入
+function playerDeath() {
+  gameOver=true; deathScreen.style.display='flex'; stopAmbient(); controls.unlock();
+  sfx(200,'sawtooth',0.9); sfx(40,'sawtooth',2);
+}
+
+// ================== 输入 ==================
 const keyState={w:false,a:false,s:false,d:false};
 document.addEventListener('keydown',e=>{
-  if(!gameStarted||gameOver)return;
+  if(!gameStarted||gameOver) return;
   switch(e.code){
     case'KeyW':keyState.w=true;break; case'KeyA':keyState.a=true;break;
     case'KeyS':keyState.s=true;break; case'KeyD':keyState.d=true;break;
-    case'KeyF':toggleFlashlight();break; case'Space':interact();break;
+    case'KeyF': if(battery>0){flashlightOn=!flashlightOn; showMessage(flashlightOn?'手电筒开启':'手电筒关闭',1);} else showMessage('没电了'); break;
+    case'Space':interact(); break;
+    case'KeyE': if(nearNote) showMessage('阅读笔记...',2); break;
   }
 });
 document.addEventListener('keyup',e=>{
   switch(e.code){case'KeyW':keyState.w=false;break;case'KeyA':keyState.a=false;break;case'KeyS':keyState.s=false;break;case'KeyD':keyState.d=false;break;}
 });
 
-document.getElementById('startButton').addEventListener('click', () => {
-  initAudio();
-  startDrone();
-  startScreen.style.display = 'none';
-  gameStarted = true;
-  
-  // 显示提示文字
-  const hint = document.getElementById('hint');
-  hint.textContent = '🖱️ 点击屏幕锁定鼠标';
-  hint.style.display = 'block';
-  
-  // 添加一次性点击监听，直接绑定在 document 上确保触发
-  function lockHandler() {
+// ================== 启动 ==================
+document.getElementById('continueButton').addEventListener('click', ()=>{
+  introScreen.style.display='none';
+  hud.style.display='flex';
+  gameStarted=true;
+  initAudio(); startAmbient();
+  showMessage('点击屏幕锁定鼠标');
+  document.addEventListener('click', ()=>{
     controls.lock();
-    document.removeEventListener('click', lockHandler);
-  }
-  document.addEventListener('click', lockHandler);
-  
-  // 如果用户按了ESC解锁，再次显示提示
-  controls.addEventListener('unlock', () => {
-    if (gameStarted && !gameOver) {
-      hint.textContent = '🖱️ 点击屏幕重新锁定鼠标';
-      hint.style.display = 'block';
-      document.addEventListener('click', lockHandler, { once: true });
-    }
+    document.removeEventListener('click', arguments.callee);
   });
-  
-  controls.addEventListener('lock', () => {
-    hint.style.display = 'none';
+  controls.addEventListener('lock', ()=>showMessage(''));
+  controls.addEventListener('unlock', ()=>{
+    if(gameStarted&&!gameOver) showMessage('点击屏幕重新锁定');
   });
 });
-document.getElementById('restartButton').onclick=()=>location.reload();
-controls.addEventListener('unlock',()=>{if(gameStarted&&!gameOver) hintEl.style.display='block';});
-window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+document.getElementById('restartButton').addEventListener('click',()=>location.reload());
+document.getElementById('restartButtonWin').addEventListener('click',()=>location.reload());
+
+window.addEventListener('resize', ()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
 
 animate();
