@@ -2,7 +2,6 @@
 body { overflow:hidden; background:#000; font-family:'Courier New',monospace; user-select:none; }
 canvas { display:block; }
 
-/* 开场剧情 */
 #introScreen {
   position:fixed; inset:0; z-index:200;
   background:rgba(0,0,0,0.95);
@@ -10,10 +9,7 @@ canvas { display:block; }
   align-items:center; justify-content:center;
   color:#ccc; text-align:center;
 }
-.intro-text h1 {
-  font-size:3rem; letter-spacing:8px; text-shadow:0 0 25px #a00;
-  margin-bottom:30px;
-}
+.intro-text h1 { font-size:3rem; letter-spacing:8px; text-shadow:0 0 25px #a00; margin-bottom:30px; }
 .intro-text p { font-size:1.1rem; margin:12px 0; color:#aaa; max-width:600px; line-height:1.7; }
 .quote { color:#b66; font-style:italic; font-size:1.2rem; margin-top:20px; }
 #continueButton {
@@ -23,15 +19,14 @@ canvas { display:block; }
 }
 #continueButton:hover { background:#900; box-shadow:0 0 20px #a00; }
 
-/* HUD */
 #hud {
   position:fixed; top:20px; left:20px; z-index:20;
-  pointer-events:none; display:flex; flex-direction:column; gap:8px;
+  pointer-events:none; display:flex; flex-direction:column; gap:6px;
 }
 .hud-item {
   background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.12);
-  padding:5px 12px; border-radius:4px; color:#ccc; font-size:14px;
-  letter-spacing:1.5px; text-shadow:0 0 6px #000;
+  padding:4px 10px; border-radius:4px; color:#ccc; font-size:13px;
+  letter-spacing:1.2px; text-shadow:0 0 6px #000;
 }
 .hud-item.danger { color:#f44; border-color:#f44; animation:pulse 1s infinite; }
 @keyframes pulse {
@@ -56,11 +51,14 @@ canvas { display:block; }
 }
 #bloodOverlay {
   position:fixed; inset:0; z-index:17; pointer-events:none;
-  opacity:0; transition:opacity 0.3s;
+  opacity:0; transition:opacity 0.2s;
   background:radial-gradient(circle, transparent 0%, rgba(100,0,0,0.4) 100%);
 }
+#rainOverlay {
+  position:fixed; inset:0; z-index:18; pointer-events:none;
+  opacity:0.3; background:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><line x1="10" y1="0" x2="10" y2="20" stroke="white" stroke-width="0.5" opacity="0.4"/><line x1="40" y1="10" x2="40" y2="40" stroke="white" stroke-width="0.5" opacity="0.3"/><line x1="70" y1="0" x2="70" y2="15" stroke="white" stroke-width="0.5" opacity="0.5"/><line x1="90" y1="20" x2="90" y2="50" stroke="white" stroke-width="0.5" opacity="0.2"/></svg>') repeat;
+}
 
-/* 死亡/胜利 */
 #deathScreen, #winScreen {
   position:fixed; inset:0; z-index:150;
   display:flex; flex-direction:column;

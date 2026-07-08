@@ -3,32 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>圣玛丽疗养院 · 3D恐怖</title>
+  <title>圣玛丽医院 · 3D恐怖</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="introScreen">
     <div class="intro-text">
-      <h1>圣玛丽疗养院</h1>
-      <p>1976年大火后，这里成了禁地。</p>
-      <p>你收到失踪调查员最后的邮件：</p>
-      <p class="quote">"钥匙被它们藏在痛苦最深处。小心走廊里的东西，关灯也许能救你一命。"</p>
+      <h1>圣玛丽医院</h1>
+      <p>暴风雨之夜，你因车祸醒来，发现自己在废弃的医院中。</p>
+      <p>广播断断续续传来声音：</p>
+      <p class="quote">"恢复电力...需要找到4个保险丝...小心阴影..."</p>
     </div>
-    <button id="continueButton">进入疗养院</button>
+    <button id="continueButton">开始求生</button>
   </div>
 
   <div id="hud" style="display:none">
-    <div class="hud-item" id="objective">🎯 找到3把钥匙，打开地下室铁门</div>
-    <div class="hud-item" id="keyHud">🔑 钥匙 0/3</div>
-    <div class="hud-item" id="healthHud">❤️ 理智 100</div>
+    <div class="hud-item" id="objective">🎯 收集4个保险丝，恢复电力</div>
+    <div class="hud-item" id="fuseHud">⚡ 保险丝 0/4</div>
+    <div class="hud-item" id="healthHud">❤️ 血量 100</div>
     <div class="hud-item" id="batteryHud">🔋 手电筒 100%</div>
-    <div class="hud-item" id="tipHud">💡 按F开关手电筒 | 空格互动 | 靠近钥匙会有提示</div>
+    <div class="hud-item" id="medkitHud">💊 医疗包 0</div>
   </div>
 
   <div id="message"></div>
   <div id="vignette"></div>
   <div id="noise"></div>
   <div id="bloodOverlay"></div>
+  <div id="rainOverlay"></div>
 
   <div id="deathScreen" style="display:none">
     <h2>你死了</h2>
@@ -37,8 +38,8 @@
   </div>
 
   <div id="winScreen" style="display:none">
-    <h2>你逃出来了</h2>
-    <p>但那些低语似乎跟着你回到了地面。</p>
+    <h2>电力恢复</h2>
+    <p>你逃出了医院，但风暴仍在继续...</p>
     <button id="restartButtonWin">再玩一次</button>
   </div>
 
