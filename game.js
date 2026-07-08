@@ -5,40 +5,19 @@ import { createWallTexture, createFloorTexture, createBloodTexture, createNoteTe
 // ================== 音频 ==================
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx;
-function initAudio() {
-  if(!audioCtx) audioCtx = new AudioCtx();
-  if(audioCtx.state === 'suspended') audioCtx.resume();
-}
-function sfx(freq, type, dur, vol=0.1) {
-  if(!audioCtx) return;
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.type=type; o.frequency.value=freq;
-  g.gain.setValueAtTime(vol, audioCtx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
-  o.connect(g); g.connect(audioCtx.destination);
-  o.start(); o.stop(audioCtx.currentTime+dur+0.05);
-}
+function initAudio() { if(!audioCtx) audioCtx = new AudioCtx(); if(audioCtx.state==='suspended') audioCtx.resume(); }
+function sfx(f,t,d,v=0.1){ if(!audioCtx)return; const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type=t; o.frequency.value=f; g.gain.setValueAtTime(v,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+d); o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+d+0.05); }
 let ambientGain, ambientOsc;
-function startAmbient() {
-  if(!audioCtx) return;
-  ambientOsc = audioCtx.createOscillator();
-  ambientGain = audioCtx.createGain();
-  ambientOsc.type='sine'; ambientOsc.frequency.value=36;
-  ambientGain.gain.value=0.05;
-  ambientOsc.connect(ambientGain);
-  ambientGain.connect(audioCtx.destination);
-  ambientOsc.start();
-}
-function stopAmbient() { try{ambientOsc.stop();}catch(e){} }
+function startAmbient(){ if(!audioCtx)return; ambientOsc=audioCtx.createOscillator(); ambientGain=audioCtx.createGain(); ambientOsc.type='sine'; ambientOsc.frequency.value=36; ambientGain.gain.value=0.05; ambientOsc.connect(ambientGain); ambientGain.connect(audioCtx.destination); ambientOsc.start(); }
+function stopAmbient(){ try{ambientOsc.stop();}catch(e){} }
 
-// ================== 场景初始化 ==================
+// ================== 场景 ==================
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x040404, 0.015);
+scene.fog = new THREE.FogExp2(0x040404, 0.012);
 scene.background = new THREE.Color(0x040404);
 
-const camera = new THREE.PerspectiveCamera(68, innerWidth/innerHeight, 0.1, 50);
-camera.position.set(0, 1.7, 5);
+const camera = new THREE.PerspectiveCamera(68, innerWidth/innerHeight, 0.1, 60);
+camera.position.set(0, 1.7, 8);
 camera.rotation.order = 'YXZ';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -53,308 +32,283 @@ document.body.appendChild(renderer.domElement);
 
 const controls = new PointerLockControls(camera, renderer.domElement);
 
-// DOM元素
+// DOM
 const introScreen = document.getElementById('introScreen');
 const hud = document.getElementById('hud');
 const deathScreen = document.getElementById('deathScreen');
 const winScreen = document.getElementById('winScreen');
 const messageEl = document.getElementById('message');
 const bloodOverlay = document.getElementById('bloodOverlay');
-const noteHud = document.getElementById('noteHud');
 const objectiveEl = document.getElementById('objective');
+const keyHud = document.getElementById('keyHud');
+const healthHud = document.getElementById('healthHud');
+const batteryHud = document.getElementById('batteryHud');
 
-// ================== 游戏状态 ==================
-let gameStarted = false, gameOver = false;
-let keysCollected = 0, totalKeys = 3;
-let flashlightOn = true, battery = 100;
-let playerHealth = 100;
-let lastFootstep = 0, lastHeartbeat = 0;
-let shakeAmount = 0;
-const playerRadius = 0.4;
-let nearNote = null;
+// ================== 状态 ==================
+let gameStarted=false, gameOver=false, keysCollected=0, totalKeys=3;
+let flashlightOn=true, battery=100, playerHealth=100;
+let lastFootstep=0, lastHeartbeat=0, shakeAmount=0;
+const playerRadius=0.4;
 
 // ================== 纹理 ==================
-const wallTex = createWallTexture();
-const floorTex = createFloorTexture();
-const bloodTex = createBloodTexture();
-const noteTex1 = createNoteTexture('调查员笔记 #3\n它们害怕光，但更恨光。\n钥匙在痛苦的房间。\n地下室入口在停尸房。');
-const noteTex2 = createNoteTexture('病人日记\n护士长总是半夜尖叫。\n她说墙里有眼睛。');
-const noteTex3 = createNoteTexture('院长的忏悔\n我打开了不该开的门。\n愿上帝宽恕我们。');
+const wallTex=createWallTexture(), floorTex=createFloorTexture(), bloodTex=createBloodTexture();
+const noteTex1=createNoteTexture('调查员笔记\n钥匙在痛苦最深的房间。\n关闭光源可短暂骗过它们。');
+const noteTex2=createNoteTexture('病人日记\n昨晚又有人被拖走了。\n护士长说地下有东西。');
+const noteTex3=createNoteTexture('院长的信\n我打开了不该开的门。\n愿主宽恕我们。');
 
-const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness:0.85 });
-const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness:0.75 });
-const ceilingMat = new THREE.MeshStandardMaterial({ color:0x3a3a3a, roughness:0.9 });
-const bloodMat = new THREE.MeshStandardMaterial({ map: bloodTex, roughness:0.8, transparent:true, opacity:0.7, depthWrite:false });
+const wallMat=new THREE.MeshStandardMaterial({map:wallTex,roughness:0.85});
+const floorMat=new THREE.MeshStandardMaterial({map:floorTex,roughness:0.75});
+const ceilingMat=new THREE.MeshStandardMaterial({color:0x3a3a3a,roughness:0.9});
+const bloodMat=new THREE.MeshStandardMaterial({map:bloodTex,roughness:0.8,transparent:true,opacity:0.7,depthWrite:false});
 
 // ================== 碰撞系统 ==================
-const colliders = [];
-function addCollider(meshOrFunc) {
-  if(typeof meshOrFunc === 'function') {
-    const box = meshOrFunc();
-    colliders.push({ min:box.min.clone(), max:box.max.clone() });
-  } else {
-    const box = new THREE.Box3().setFromObject(meshOrFunc);
-    colliders.push({ min:box.min.clone(), max:box.max.clone() });
-  }
+const colliders=[];
+function boxCollider(x,y,z,w,h,d){
+  const half=new THREE.Vector3(w/2,h/2,d/2);
+  colliders.push({min:new THREE.Vector3(x-half.x,y-half.y,z-half.z),max:new THREE.Vector3(x+half.x,y+half.y,z+half.z)});
 }
-function boxCollider(x,y,z,w,h,d) {
-  const half = new THREE.Vector3(w/2,h/2,d/2);
-  colliders.push({
-    min: new THREE.Vector3(x-half.x, y-half.y, z-half.z),
-    max: new THREE.Vector3(x+half.x, y+half.y, z+half.z)
-  });
+function addColMesh(mesh){
+  const box=new THREE.Box3().setFromObject(mesh);
+  colliders.push({min:box.min.clone(),max:box.max.clone()});
 }
 
-// ================== 世界构建（三层结构） ==================
-const world = new THREE.Group();
-scene.add(world);
-
-function wall(x,y,z,w,h,d) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), wallMat);
+// ================== 世界构建 ==================
+const world=new THREE.Group(); scene.add(world);
+function wall(x,y,z,w,h,d){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),wallMat);
   m.position.set(x,y,z); m.castShadow=m.receiveShadow=true;
   world.add(m); boxCollider(x,y,z,w,h,d);
 }
+function floor(x,y,z,w,d){ wall(x,y,z,w,0.15,d); } // 简化
+const CH=3.2, CW=3.2;
 
-const CH = 3.2;
+// --- 中央大厅 ---
+floor(0,0,0, 6, 10); // 出生点大厅
+wall(0,CH,0,6,0.15,10);
+wall(-3,CH/2,0,0.2,CH,10);
+wall(3,CH/2,0,0.2,CH,10);
+wall(0,CH/2,-5,6,CH,0.2);
+wall(-3,CH/2,5,0.2,CH,2); // 入口门洞
+wall(3,CH/2,5,0.2,CH,2);
 
-// --- 一层：主走廊与病房区 ---
-const CW = 3.2, CL = 18;
-wall(0,0,0, CW,0.15, CL); // floor
-wall(0,CH,0, CW,0.15, CL); // ceiling
-wall(-CW/2, CH/2, 0, 0.2, CH, CL);
-wall(CW/2, CH/2, 0, 0.2, CH, CL);
-wall(0, CH/2, -CL/2, CW, CH, 0.2);
+// --- 左侧走廊（连接病房区）---
+const leftCorridorZ = -8;
+floor(-5, 0, leftCorridorZ, 2, 8);
+wall(-6, CH/2, leftCorridorZ, 0.2, CH, 8);
+wall(-4, CH/2, leftCorridorZ, 0.2, CH, 8);
+wall(-5, CH/2, leftCorridorZ-4, 2, CH, 0.2);
 
-// 左侧病房
-const r1x = -4.2, r1z = -4, r1w=4.2, r1d=6;
-wall(r1x,0,r1z, r1w,0.15,r1d);
-wall(r1x,CH,r1z, r1w,0.15,r1d);
-wall(r1x-r1w/2, CH/2, r1z, 0.2,CH,r1d);
-wall(r1x+r1w/2, CH/2, r1z, 0.2,CH,r1d);
-wall(r1x, CH/2, r1z-r1d/2, r1w,CH,0.2);
-
-// 右侧手术室
-const r2x = 4.2, r2z = 3.5, r2w=4.2, r2d=5.5;
-wall(r2x,0,r2z, r2w,0.15,r2d);
-wall(r2x,CH,r2z, r2w,0.15,r2d);
-wall(r2x-r2w/2, CH/2, r2z, 0.2,CH,r2d);
-wall(r2x+r2w/2, CH/2, r2z, 0.2,CH,r2d);
-wall(r2x, CH/2, r2z+r2d/2, r2w,CH,0.2);
-
-// --- 二层：走廊延伸至停尸房（地下室入口） ---
-const morgueZ = -CL/2 - 3;
-wall(0,0,morgueZ, CW,0.15, 5);
-wall(0,CH,morgueZ, CW,0.15, 5);
-wall(-CW/2, CH/2, morgueZ, 0.2,CH,5);
-wall(CW/2, CH/2, morgueZ, 0.2,CH,5);
-wall(0, CH/2, morgueZ-2.5, CW,CH,0.2);
-
-// --- 三层：地下室（通过停尸房活板门进入） ---
-const basementY = -3.2;
-const baseGroup = new THREE.Group();
-baseGroup.position.set(0, basementY, morgueZ-4);
-const BW = 4.5, BH = 2.8, BL = 7;
-const baseWallMat = new THREE.MeshStandardMaterial({ color:0x2a2a2a, roughness:0.9 });
-function bwall(x,y,z,w,h,d) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), baseWallMat);
-  m.position.set(x,y,z); m.castShadow=m.receiveShadow=true;
-  baseGroup.add(m);
-  // 碰撞体需转换到世界坐标
-  const worldPos = m.position.clone().add(baseGroup.position);
-  boxCollider(worldPos.x, worldPos.y, worldPos.z, w, h, d);
-}
-bwall(0,0,0, BW,0.1, BL);
-bwall(0,BH,0, BW,0.1, BL);
-bwall(-BW/2, BH/2, 0, 0.2, BH, BL);
-bwall(BW/2, BH/2, 0, 0.2, BH, BL);
-bwall(0, BH/2, -BL/2, BW, BH, 0.2);
-world.add(baseGroup);
-
-// 地下室活板门（可交互）
-const trapdoor = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.05,0.8), new THREE.MeshStandardMaterial({color:0x4a3a2a}));
-trapdoor.position.set(0,0.05, morgueZ-1.5);
-trapdoor.rotation.x = -Math.PI/2;
-world.add(trapdoor);
-trapdoor.userData.isTrapdoor = true;
-
-// ================== 模型与家具 ==================
+// 病房1
+const ward1x=-5, ward1z=leftCorridorZ-6;
+floor(ward1x,0,ward1z, 4,5);
+wall(ward1x-2, CH/2, ward1z, 0.2,CH,5);
+wall(ward1x+2, CH/2, ward1z, 0.2,CH,5);
+wall(ward1x, CH/2, ward1z-2.5, 4,CH,0.2);
 // 病床
-function bed(x,y,z) {
-  const g = new THREE.Group();
-  const m = new THREE.MeshStandardMaterial({color:0x5a5a5a, roughness:0.4, metalness:0.7});
-  for(let ix of[-0.7,0.7]) for(let iz of[-1.1,1.1]) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.5,6), m);
-    leg.position.set(ix,0.25,iz); g.add(leg);
-  }
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.06,2.4), m);
-  frame.position.set(0,0.5,0); g.add(frame);
-  const mattress = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.14,2.2), new THREE.MeshStandardMaterial({color:0x9a8a7a}));
-  mattress.position.set(0,0.6,0); g.add(mattress);
+const bed1=new THREE.Group();
+const bmat=new THREE.MeshStandardMaterial({color:0x5a5a5a,roughness:0.4,metalness:0.7});
+for(let ix of[-0.7,0.7])for(let iz of[-1,1]){
+  const l=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.5,6),bmat);
+  l.position.set(ix,0.25,iz); bed1.add(l);
+}
+bed1.add(new THREE.Mesh(new THREE.BoxGeometry(1.5,0.05,2.2),bmat)).position.y=0.5;
+bed1.add(new THREE.Mesh(new THREE.BoxGeometry(1.3,0.12,2),new THREE.MeshStandardMaterial({color:0x9a8a7a}))).position.y=0.6;
+bed1.position.set(ward1x,0,ward1z);
+world.add(bed1); addColMesh(bed1);
+
+// --- 右侧走廊（连接手术区）---
+const rightCorridorZ = -8;
+floor(5, 0, rightCorridorZ, 2, 8);
+wall(4, CH/2, rightCorridorZ, 0.2, CH, 8);
+wall(6, CH/2, rightCorridorZ, 0.2, CH, 8);
+wall(5, CH/2, rightCorridorZ-4, 2, CH, 0.2);
+// 手术室
+const opx=5, opz=rightCorridorZ-6;
+floor(opx,0,opz, 4,5);
+wall(opx-2, CH/2, opz, 0.2,CH,5);
+wall(opx+2, CH/2, opz, 0.2,CH,5);
+wall(opx, CH/2, opz-2.5, 4,CH,0.2);
+const optable=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.1,2.4),new THREE.MeshStandardMaterial({color:0x7a7a7a,roughness:0.3,metalness:0.9}));
+optable.position.set(opx,0.8,opz); world.add(optable); addColMesh(optable);
+
+// --- 庭院（中间区域）---
+const courtyardZ = 12;
+floor(0,0,courtyardZ, 8,8);
+wall(-4,CH/2,courtyardZ,0.2,CH,8);
+wall(4,CH/2,courtyardZ,0.2,CH,8);
+wall(0,CH/2,courtyardZ+4,8,CH,0.2);
+// 雕像
+const statue = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,1.5,8), new THREE.MeshStandardMaterial({color:0x4a4a4a,roughness:0.6}));
+statue.position.set(0,0.75,courtyardZ);
+world.add(statue); addColMesh(statue);
+
+// --- 地下室区域（通过庭院角落活板门）---
+const basementEntrance = new THREE.Vector3(3, 0, courtyardZ+3);
+const trapdoorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.05,0.8), new THREE.MeshStandardMaterial({color:0x4a3a2a}));
+trapdoorMesh.position.copy(basementEntrance);
+trapdoorMesh.rotation.x=-Math.PI/2;
+world.add(trapdoorMesh);
+trapdoorMesh.userData.isTrapdoor=true;
+
+const basementGroup = new THREE.Group();
+basementGroup.position.set(3, -3.5, courtyardZ+6);
+const bmat2 = new THREE.MeshStandardMaterial({color:0x2a2a2a,roughness:0.9});
+function bwall(x,y,z,w,h,d){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bmat2);
+  m.position.set(x,y,z); basementGroup.add(m);
+  const wp=m.position.clone().add(basementGroup.position);
+  boxCollider(wp.x,wp.y,wp.z,w,h,d);
+}
+bwall(0,0,0, 6,0.1,8);
+bwall(0,2.8,0,6,0.1,8);
+bwall(-3,1.4,0,0.2,2.8,8);
+bwall(3,1.4,0,0.2,2.8,8);
+bwall(0,1.4,-4,6,2.8,0.2);
+world.add(basementGroup);
+
+// 地下室出口门（胜利点）
+const exitDoor=new THREE.Mesh(new THREE.BoxGeometry(1.3,2.2,0.1),new THREE.MeshStandardMaterial({color:0x4a2a1a}));
+exitDoor.position.set(3, -3.5+1.1, courtyardZ+2);
+world.add(exitDoor);
+exitDoor.userData.isExit=true;
+
+// 血迹与笔记
+const bloodDecal1 = new THREE.Mesh(new THREE.PlaneGeometry(1.2,1.5), bloodMat);
+bloodDecal1.rotation.x=-Math.PI/2; bloodDecal1.position.set(ward1x,0.1,ward1z);
+world.add(bloodDecal1);
+const note1 = new THREE.Mesh(new THREE.PlaneGeometry(0.3,0.2), new THREE.MeshBasicMaterial({map:noteTex1}));
+note1.position.set(ward1x,1.2,ward1z+1.5); note1.userData.isNote=true; world.add(note1);
+const note2 = new THREE.Mesh(new THREE.PlaneGeometry(0.3,0.2), new THREE.MeshBasicMaterial({map:noteTex2}));
+note2.position.set(opx-1,1.0,opz); note2.userData.isNote=true; world.add(note2);
+const note3 = new THREE.Mesh(new THREE.PlaneGeometry(0.3,0.2), new THREE.MeshBasicMaterial({map:noteTex3}));
+note3.position.set(0,0.9,courtyardZ-2); note3.userData.isNote=true; world.add(note3);
+
+// ================== 钥匙（高亮光柱）==================
+const keys=[];
+function createKey(x,y,z){
+  const g=new THREE.Group();
+  const kMat=new THREE.MeshStandardMaterial({color:0xe0c060,roughness:0.2,metalness:0.8,emissive:0x332200});
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.06,8),kMat));
+  const shaft=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.4,0.04),kMat); shaft.position.y=-0.22; g.add(shaft);
+  const tooth=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.05,0.04),kMat); tooth.position.set(0.03,-0.36,0); g.add(tooth);
+  // 光柱粒子
+  const pillarGeo=new THREE.CylinderGeometry(0.1,0.15,0.8,6);
+  const pillar=new THREE.Mesh(pillarGeo,new THREE.MeshBasicMaterial({color:0xffdd88,transparent:true,opacity:0.4,depthWrite:false}));
+  pillar.position.y=0.4; g.add(pillar);
+  // 上下浮动动画标记
+  g.userData.isKey=true;
+  g.userData.baseY=y;
   g.position.set(x,y,z);
-  world.add(g); addCollider(g);
+  world.add(g);
+  keys.push(g);
 }
-bed(r1x-0.5,0,r1z-1);
-bed(r1x+0.8,0,r1z+1.2);
-
-// 手术台
-const opTable = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.1,2.6), new THREE.MeshStandardMaterial({color:0x7a7a7a, roughness:0.3, metalness:0.9}));
-opTable.position.set(r2x,0.8,r2z-0.2);
-world.add(opTable); addCollider(opTable);
-
-// 轮椅（可移动动画）
-const wheelchair = new THREE.Group();
-const wMat = new THREE.MeshStandardMaterial({color:0x4a4a4a, roughness:0.5, metalness:0.8});
-const wheelGeo = new THREE.TorusGeometry(0.22,0.04,6,10);
-for(let ix of[-0.45,0.45]) {
-  const w = new THREE.Mesh(wheelGeo, wMat);
-  w.rotation.x=Math.PI/2; w.position.set(ix,0.25,0); wheelchair.add(w);
-}
-const frame = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.8,6), wMat);
-frame.position.set(-0.4,0.6,0.2); wheelchair.add(frame);
-frame.clone().position.set(0.4,0.6,0.2); wheelchair.add(frame.clone());
-const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.05,0.5), wMat);
-seat.position.set(0,0.5,0.2); wheelchair.add(seat);
-wheelchair.position.set(r1x+1.5,0,r1z-0.8);
-world.add(wheelchair); addCollider(wheelchair);
-
-// 笔记（可交互）
-function addNote(x,y,z,tex) {
-  const note = new THREE.Mesh(new THREE.PlaneGeometry(0.3,0.2), new THREE.MeshBasicMaterial({map:tex}));
-  note.position.set(x,y,z);
-  note.userData.isNote = true;
-  world.add(note);
-  return note;
-}
-const note1 = addNote(r1x, 1.2, r1z+1.8, noteTex1);
-const note2 = addNote(r2x-0.8, 1.0, r2z-0.5, noteTex2);
-const note3 = addNote(0, 0.9, morgueZ-0.8, noteTex3);
-
-// 钥匙
-const keys = [];
-function key(x,y,z) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({color:0xe0c060, roughness:0.3, metalness:0.7, emissive:0x332200});
-  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.06,8), mat));
-  const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.4,0.04), mat);
-  shaft.position.y=-0.22; g.add(shaft);
-  const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.05,0.04), mat);
-  tooth.position.set(0.03,-0.36,0); g.add(tooth);
-  g.add(new THREE.Mesh(new THREE.SphereGeometry(0.15,6,6), new THREE.MeshBasicMaterial({color:0xffdd88, transparent:true, opacity:0.6})));
-  g.position.set(x,y,z); g.userData.isKey=true;
-  world.add(g); keys.push(g);
-}
-key(r1x-1.2, 0.85, r1z-2.5);
-key(r2x+1.2, 0.9, r2z+2.2);
-key(1.1, 0.7, morgueZ-3.8); // 地下室
+createKey(ward1x+0.5, 0.85, ward1z-1.5); // 病房
+createKey(opx-0.3, 0.9, opz-1.8); // 手术室
+createKey(1.5, 0.7, courtyardZ-2.5); // 庭院
 
 // ================== 灯光 ==================
-const flashlight = new THREE.SpotLight(0xffeedd);
-flashlight.angle=0.4; flashlight.penumbra=0.3; flashlight.decay=1.5; flashlight.distance=16;
-flashlight.intensity=1.5; flashlight.castShadow=true;
+const flashlight=new THREE.SpotLight(0xffeedd);
+flashlight.angle=0.4; flashlight.penumbra=0.3; flashlight.decay=1.5; flashlight.distance=18;
+flashlight.intensity=1.6; flashlight.castShadow=true;
 flashlight.shadow.mapSize.set(512,512);
 camera.add(flashlight);
 flashlight.target.position.set(0,0,-1.5); camera.add(flashlight.target);
 
-scene.add(new THREE.AmbientLight(0x0a0a18, 0.25));
-const flickerLights = [];
-for(let i=0;i<8;i++) {
-  const l = new THREE.PointLight(0xcc9966, 0.5, 8, 1.5);
-  l.position.set(0, CH-0.3, -CL/2+1.5 + i*2.3);
+scene.add(new THREE.AmbientLight(0x0a0a18,0.25));
+const flickerLights=[];
+for(let i=0;i<10;i++){
+  const l=new THREE.PointLight(0xcc9966,0.5,8,1.5);
+  l.position.set((Math.random()-0.5)*10,CH-0.3,(Math.random()-0.5)*20);
   world.add(l);
-  flickerLights.push({light:l, base:0.5});
+  flickerLights.push(l);
 }
 
-// ================== 幽灵 ==================
-const ghost = new THREE.Group();
-const gMat = new THREE.MeshStandardMaterial({color:0x1a2a1a, roughness:0.3, transparent:true, opacity:0.55, emissive:0x0a1a0a});
-ghost.add(new THREE.Mesh(new THREE.ConeGeometry(0.5,1.7,8), gMat)).position.y=0.85;
-ghost.add(new THREE.Mesh(new THREE.SphereGeometry(0.35,8,6), gMat)).position.y=1.75;
-const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08,6,6), new THREE.MeshBasicMaterial({color:0xff2200}));
+// ================== 幽灵（降低伤害，增加躲避） ==================
+const ghost=new THREE.Group();
+const gMat=new THREE.MeshStandardMaterial({color:0x1a2a1a,roughness:0.3,transparent:true,opacity:0.55,emissive:0x0a1a0a});
+ghost.add(new THREE.Mesh(new THREE.ConeGeometry(0.45,1.7,8),gMat)).position.y=0.85;
+ghost.add(new THREE.Mesh(new THREE.SphereGeometry(0.33,8,6),gMat)).position.y=1.75;
+const eye=new THREE.Mesh(new THREE.SphereGeometry(0.08,6,6),new THREE.MeshBasicMaterial({color:0xff2200}));
 eye.position.set(-0.12,1.8,0.28); ghost.add(eye);
 eye.clone().position.set(0.12,1.8,0.28); ghost.add(eye);
-ghost.position.set(2,0,-3);
+ghost.position.set(2,0,-2);
 world.add(ghost);
-const ghostAI = {
-  pos: new THREE.Vector3(2,0,-3),
-  patrol: [new THREE.Vector3(2,0,-5), new THREE.Vector3(-2,0,-1), new THREE.Vector3(4,0,2), new THREE.Vector3(-4,0,-3)],
-  idx:0, chase:false, speed:0.55, chaseSpeed:2.5, lastScare:0
+const ghostAI={
+  pos:new THREE.Vector3(2,0,-2),
+  patrol:[new THREE.Vector3(2,0,-4),new THREE.Vector3(-2,0,-2),new THREE.Vector3(4,0,2),new THREE.Vector3(-4,0,-3),new THREE.Vector3(0,0,5)],
+  idx:0,chase:false,speed:0.5,chaseSpeed:2.2,lastScare:0,stuckTimer:0
 };
 
-// ================== 交互逻辑 ==================
-function showMessage(text, dur=2.5) {
+// ================== 游戏逻辑 ==================
+function showMessage(text,dur=2.5){
   messageEl.textContent=text; messageEl.style.opacity=1;
-  clearTimeout(window._msgT); window._msgT=setTimeout(()=>messageEl.style.opacity=0, dur*1000);
+  clearTimeout(window._msgT); window._msgT=setTimeout(()=>messageEl.style.opacity=0,dur*1000);
 }
-function updateHUD() {
-  document.getElementById('keyHud').textContent = `🔑 钥匙 ${keysCollected}/${totalKeys}`;
-  document.getElementById('healthHud').textContent = `❤️ 理智 ${Math.floor(playerHealth)}`;
-  document.getElementById('batteryHud').textContent = `🔋 手电筒 ${Math.floor(battery)}%`;
-  if(playerHealth<30) document.getElementById('healthHud').classList.add('danger');
-  else document.getElementById('healthHud').classList.remove('danger');
-  if(battery<20) document.getElementById('batteryHud').classList.add('danger');
-  else document.getElementById('batteryHud').classList.remove('danger');
-  if(keysCollected>=totalKeys) objectiveEl.textContent='🚪 前往地下室活板门！';
+function updateHUD(){
+  keyHud.textContent=`🔑 钥匙 ${keysCollected}/${totalKeys}`;
+  healthHud.textContent=`❤️ 理智 ${Math.floor(playerHealth)}`;
+  batteryHud.textContent=`🔋 手电筒 ${Math.floor(battery)}%`;
+  if(playerHealth<30) healthHud.classList.add('danger'); else healthHud.classList.remove('danger');
+  if(battery<20) batteryHud.classList.add('danger'); else batteryHud.classList.remove('danger');
+  if(keysCollected>=totalKeys) objectiveEl.textContent='🚪 前往庭院角落的活板门！';
 }
-function checkCollision(pos) {
-  for(const c of colliders) {
-    if(pos.x+playerRadius > c.min.x && pos.x-playerRadius < c.max.x &&
-       pos.y+0.25 > c.min.y && pos.y-1.5 < c.max.y &&
-       pos.z+playerRadius > c.min.z && pos.z-playerRadius < c.max.z) return true;
+
+function checkCollision(pos){
+  for(const c of colliders){
+    if(pos.x+playerRadius>c.min.x && pos.x-playerRadius<c.max.x &&
+       pos.y+0.25>c.min.y && pos.y-1.5<c.max.y &&
+       pos.z+playerRadius>c.min.z && pos.z-playerRadius<c.max.z) return true;
   }
   return false;
 }
-function interact() {
-  if(!gameStarted||gameOver) return;
-  const p = camera.position;
-  // 钥匙
-  for(let i=keys.length-1;i>=0;i--) {
-    if(p.distanceTo(keys[i].position)<2.2) {
+
+function interact(){
+  if(!gameStarted||gameOver)return;
+  const p=camera.position;
+  // 捡钥匙
+  for(let i=keys.length-1;i>=0;i--){
+    if(p.distanceTo(keys[i].position)<2.5){
       world.remove(keys[i]); keys.splice(i,1); keysCollected++;
       sfx(660,'sine',0.15); sfx(880,'sine',0.2);
-      showMessage(`🔑 找到钥匙！(${keysCollected}/${totalKeys})`);
+      showMessage(`🔑 你找到了钥匙！ (${keysCollected}/${totalKeys})`);
       updateHUD(); return;
     }
   }
-  // 笔记
-  for(const note of [note1,note2,note3]) {
-    if(note && p.distanceTo(note.position)<2.0) {
-      showMessage('你阅读了笔记...', 3);
-      sfx(400,'sine',0.3);
-      break;
+  // 活板门
+  if(p.distanceTo(trapdoorMesh.position)<2.5){
+    if(keysCollected>=totalKeys){
+      showMessage('你打开了活板门，进入地下室...');
+      camera.position.set(3, -3.5+1.7, courtyardZ+5.5);
+      objectiveEl.textContent='🎯 在地下室找到出口！';
+    }else{
+      showMessage(`活板门紧锁，还需要 ${totalKeys-keysCollected} 把钥匙`);
     }
   }
-  // 活板门（需钥匙）
-  if(p.distanceTo(trapdoor.position)<2.5) {
-    if(keysCollected>=totalKeys) {
-      showMessage('你打开了活板门，进入地下室...', 2);
-      camera.position.set(0, basementY+1.7, morgueZ-4);
-      objectiveEl.textContent='🎯 在地下室找到出路！';
-    } else {
-      showMessage('活板门被锁住了，需要3把钥匙');
-    }
-  }
-  // 出口（地下室尽头）
-  if(camera.position.y < -2 && p.z < morgueZ-7) {
+  // 出口
+  if(p.distanceTo(exitDoor.position)<2.2){
     winScreen.style.display='flex'; gameOver=true; stopAmbient(); controls.unlock();
   }
 }
 
-// ================== 动画循环 ==================
-const clock = new THREE.Clock();
-let timeAccum=0;
-function animate() {
-  requestAnimationFrame(animate);
-  const delta = Math.min(clock.getDelta(), 0.15);
-  timeAccum += delta;
+function playerDeath(){
+  if(gameOver)return;
+  gameOver=true; deathScreen.style.display='flex'; stopAmbient(); controls.unlock();
+  sfx(200,'sawtooth',0.9); sfx(40,'sawtooth',2);
+}
 
-  if(gameStarted && !gameOver && controls.isLocked) {
+// ================== 动画循环 ==================
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const delta=Math.min(clock.getDelta(),0.15);
+  if(gameStarted&&!gameOver&&controls.isLocked){
     // 移动
-    const move = new THREE.Vector3();
-    if(keyState.w) move.z-=1; if(keyState.s) move.z+=1;
-    if(keyState.a) move.x-=1; if(keyState.d) move.x+=1;
-    if(move.length()>0) {
+    const move=new THREE.Vector3();
+    if(keyState.w)move.z-=1; if(keyState.s)move.z+=1;
+    if(keyState.a)move.x-=1; if(keyState.d)move.x+=1;
+    if(move.length()>0){
       move.normalize();
-      const old = camera.position.clone();
+      const old=camera.position.clone();
       controls.moveRight(move.x*3.8*delta);
       controls.moveForward(-move.z*3.8*delta);
       if(checkCollision(camera.position)) camera.position.copy(old);
@@ -363,61 +317,53 @@ function animate() {
     // 手电筒
     if(flashlightOn) battery-=2.5*delta;
     if(battery<=0){battery=0; flashlightOn=false; flashlight.intensity=0.03; showMessage('⚠ 手电筒没电了！');}
-    else flashlight.intensity=flashlightOn?1.5:0.03;
+    else flashlight.intensity=flashlightOn?1.6:0.03;
     updateHUD();
 
-    // 幽灵AI
-    const gp = ghostAI.pos;
-    const dist = gp.distanceTo(camera.position);
-    ghostAI.chase = (dist<7 && flashlightOn) || dist<3.5;
-    const target = ghostAI.chase ? camera.position.clone() : ghostAI.patrol[ghostAI.idx];
-    const dir = new THREE.Vector3().subVectors(target, gp).normalize();
-    gp.add(dir.multiplyScalar((ghostAI.chase?2.8:0.55)*delta));
+    // 幽灵AI（关键：关灯时幽灵会短时间迷失方向）
+    const gp=ghostAI.pos;
+    const dist=gp.distanceTo(camera.position);
+    ghostAI.chase=(dist<8 && flashlightOn) || dist<4;
+    if(!flashlightOn && ghostAI.chase && dist<8 && Math.random()<0.01) ghostAI.chase=false; // 关灯迷惑
+    const target=ghostAI.chase?camera.position.clone():ghostAI.patrol[ghostAI.idx];
+    const dir=new THREE.Vector3().subVectors(target,gp).normalize();
+    gp.add(dir.multiplyScalar((ghostAI.chase?2.2:0.5)*delta));
     ghost.position.copy(gp);
-    ghost.lookAt(camera.position.x, gp.y, camera.position.z);
-    if(dist<0.85) {
-      playerHealth-=60*delta;
+    ghost.lookAt(camera.position.x,gp.y,camera.position.z);
+    if(dist<0.9){
+      playerHealth-=35*delta; // 伤害降低
       bloodOverlay.style.opacity=0.5;
-      shakeAmount=Math.max(shakeAmount,0.3);
+      shakeAmount=Math.max(shakeAmount,0.2);
       if(playerHealth<=0) playerDeath();
-    } else bloodOverlay.style.opacity=0;
-    if(dist>7) playerHealth=Math.min(100, playerHealth+3*delta);
-    if(dist<5 && Date.now()-ghostAI.lastScare>8000) {
-      ghostAI.lastScare=Date.now(); sfx(180,'sawtooth',0.5); showMessage('有什么东西在靠近...',1.5);
-    }
-    if(dist<6 && Date.now()-lastHeartbeat>700){sfx(45,'sine',0.2); lastHeartbeat=Date.now();}
-    // 轮椅动画（惊吓）
-    if(dist<6 && Math.random()<0.002) {
-      wheelchair.position.x += (Math.random()-0.5)*0.2;
-      sfx(80,'square',0.2);
-    }
+    }else bloodOverlay.style.opacity=0;
+    if(dist>8) playerHealth=Math.min(100,playerHealth+5*delta); // 恢复加快
+    if(dist<6&&Date.now()-ghostAI.lastScare>7000){ghostAI.lastScare=Date.now(); sfx(180,'sawtooth',0.5); showMessage('有什么在靠近...',1.5);}
+    if(dist<7&&Date.now()-lastHeartbeat>800){sfx(45,'sine',0.2); lastHeartbeat=Date.now();}
+    // 钥匙浮动动画
+    keys.forEach(k=>{
+      k.position.y=k.userData.baseY+Math.sin(Date.now()*0.005)*0.1;
+      k.rotation.y+=0.02;
+    });
     // 屏幕震动
     if(shakeAmount>0.001){
-      camera.position.x+=(Math.random()-0.5)*shakeAmount*0.06;
-      camera.position.y+=(Math.random()-0.5)*shakeAmount*0.04;
+      camera.position.x+=(Math.random()-0.5)*shakeAmount*0.05;
+      camera.position.y+=(Math.random()-0.5)*shakeAmount*0.03;
       shakeAmount*=Math.exp(-5*delta);
     }
   }
-  // 灯光闪烁
-  flickerLights.forEach(l=>l.light.intensity=l.base*(0.4+Math.sin(timeAccum*2)*0.3+Math.random()*0.2));
-  renderer.render(scene, camera);
-}
-
-function playerDeath() {
-  gameOver=true; deathScreen.style.display='flex'; stopAmbient(); controls.unlock();
-  sfx(200,'sawtooth',0.9); sfx(40,'sawtooth',2);
+  flickerLights.forEach(l=>l.intensity=0.4+Math.sin(Date.now()*0.005)*0.2+Math.random()*0.2);
+  renderer.render(scene,camera);
 }
 
 // ================== 输入 ==================
 const keyState={w:false,a:false,s:false,d:false};
 document.addEventListener('keydown',e=>{
-  if(!gameStarted||gameOver) return;
+  if(!gameStarted||gameOver)return;
   switch(e.code){
     case'KeyW':keyState.w=true;break; case'KeyA':keyState.a=true;break;
     case'KeyS':keyState.s=true;break; case'KeyD':keyState.d=true;break;
-    case'KeyF': if(battery>0){flashlightOn=!flashlightOn; showMessage(flashlightOn?'手电筒开启':'手电筒关闭',1);} else showMessage('没电了'); break;
-    case'Space':interact(); break;
-    case'KeyE': if(nearNote) showMessage('阅读笔记...',2); break;
+    case'KeyF':if(battery>0){flashlightOn=!flashlightOn; showMessage(flashlightOn?'手电筒开启':'手电筒关闭 (可迷惑幽灵)',1);} else showMessage('没电了'); break;
+    case'Space':interact();break;
   }
 });
 document.addEventListener('keyup',e=>{
@@ -425,27 +371,16 @@ document.addEventListener('keyup',e=>{
 });
 
 // ================== 启动 ==================
-document.getElementById('continueButton').addEventListener('click', ()=>{
-  introScreen.style.display='none';
-  hud.style.display='flex';
-  gameStarted=true;
+document.getElementById('continueButton').addEventListener('click',()=>{
+  introScreen.style.display='none'; hud.style.display='flex'; gameStarted=true;
   initAudio(); startAmbient();
-  showMessage('点击屏幕锁定鼠标');
-  document.addEventListener('click', ()=>{
-    controls.lock();
-    document.removeEventListener('click', arguments.callee);
-  });
-  controls.addEventListener('lock', ()=>showMessage(''));
-  controls.addEventListener('unlock', ()=>{
-    if(gameStarted&&!gameOver) showMessage('点击屏幕重新锁定');
-  });
+  showMessage('点击屏幕锁定鼠标，然后开始探索');
+  document.addEventListener('click',()=>{controls.lock(); document.removeEventListener('click',arguments.callee);});
+  controls.addEventListener('lock',()=>showMessage(''));
+  controls.addEventListener('unlock',()=>{if(gameStarted&&!gameOver) showMessage('点击屏幕重新锁定');});
 });
 document.getElementById('restartButton').addEventListener('click',()=>location.reload());
 document.getElementById('restartButtonWin').addEventListener('click',()=>location.reload());
 
-window.addEventListener('resize', ()=>{
-  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight);});
 animate();

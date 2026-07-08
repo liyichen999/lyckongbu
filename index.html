@@ -7,25 +7,22 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- 开场剧情界面 -->
   <div id="introScreen">
     <div class="intro-text">
       <h1>圣玛丽疗养院</h1>
-      <p>1976年3月15日，一场大火吞噬了整栋建筑。</p>
-      <p>官方报告称电路老化，但幸存者说那是"它们"的复仇。</p>
-      <p>今天，你收到一封来自失踪调查员最后的邮件：</p>
-      <p class="quote">"真相在地下室，钥匙被它们藏在痛苦最集中的地方。别让灯熄灭。"</p>
+      <p>1976年大火后，这里成了禁地。</p>
+      <p>你收到失踪调查员最后的邮件：</p>
+      <p class="quote">"钥匙被它们藏在痛苦最深处。小心走廊里的东西，关灯也许能救你一命。"</p>
     </div>
-    <button id="continueButton">继续</button>
+    <button id="continueButton">进入疗养院</button>
   </div>
 
-  <!-- 游戏HUD -->
   <div id="hud" style="display:none">
-    <div class="hud-item" id="objective">🎯 寻找3把钥匙，进入地下室</div>
+    <div class="hud-item" id="objective">🎯 找到3把钥匙，打开地下室铁门</div>
     <div class="hud-item" id="keyHud">🔑 钥匙 0/3</div>
     <div class="hud-item" id="healthHud">❤️ 理智 100</div>
     <div class="hud-item" id="batteryHud">🔋 手电筒 100%</div>
-    <div class="hud-item" id="noteHud" style="display:none">📄 按E阅读笔记</div>
+    <div class="hud-item" id="tipHud">💡 按F开关手电筒 | 空格互动 | 靠近钥匙会有提示</div>
   </div>
 
   <div id="message"></div>
@@ -33,17 +30,15 @@
   <div id="noise"></div>
   <div id="bloodOverlay"></div>
 
-  <!-- 死亡界面 -->
   <div id="deathScreen" style="display:none">
     <h2>你死了</h2>
-    <p>黑暗永远吞噬了你...</p>
+    <p>黑暗吞噬了你...</p>
     <button id="restartButton">重新开始</button>
   </div>
 
-  <!-- 胜利界面 -->
   <div id="winScreen" style="display:none">
     <h2>你逃出来了</h2>
-    <p>但那些低语，似乎跟着你回到了地面。</p>
+    <p>但那些低语似乎跟着你回到了地面。</p>
     <button id="restartButtonWin">再玩一次</button>
   </div>
 
